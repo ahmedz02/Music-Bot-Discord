@@ -1,1 +1,1 @@
-web: apt-get update && apt-get install -y ffmpeg && python bot.py 
+worker: curl -o ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/builds/ffmpeg-git-amd64-static.tar.xz && tar xf ffmpeg.tar.xz && mv ffmpeg-git-*-amd64-static/ffmpeg /usr/local/bin/ && python bot.py 

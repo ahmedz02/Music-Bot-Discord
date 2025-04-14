@@ -11,10 +11,32 @@ import urllib.parse
 from collections import deque
 import random
 import aiohttp
+import subprocess
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('discord')
+
+# Check FFmpeg installation
+try:
+    ffmpeg_path = subprocess.check_output(['which', 'ffmpeg']).decode().strip()
+    logger.info(f"FFmpeg found at: {ffmpeg_path}")
+except subprocess.CalledProcessError:
+    logger.error("FFmpeg not found in PATH")
+    try:
+        # Try to find FFmpeg in common locations
+        common_paths = [
+            '/usr/bin/ffmpeg',
+            '/usr/local/bin/ffmpeg',
+            '/opt/ffmpeg/ffmpeg'
+        ]
+        for path in common_paths:
+            if os.path.exists(path):
+                logger.info(f"Found FFmpeg at: {path}")
+                os.environ['PATH'] = f"{os.path.dirname(path)}:{os.environ.get('PATH', '')}"
+                break
+    except Exception as e:
+        logger.error(f"Error searching for FFmpeg: {e}")
 
 # Load environment variables
 load_dotenv()
@@ -38,9 +60,9 @@ bot = MusicBot()
 # Suppress noise about console usage from errors
 yt_dlp.utils.bug_reports_message = lambda: ''
 
+# YouTube DL configuration
 ytdl_format_options = {
     'format': 'bestaudio/best',
-    'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
     'restrictfilenames': True,
     'noplaylist': True,
     'nocheckcertificate': True,
@@ -49,7 +71,10 @@ ytdl_format_options = {
     'quiet': True,
     'no_warnings': True,
     'default_search': 'ytsearch',
-    'source_address': '0.0.0.0'
+    'source_address': '0.0.0.0',
+    'force-ipv4': True,
+    'prefer_ffmpeg': True,
+    'ffmpeg_location': '/usr/local/bin/ffmpeg'  # Specify FFmpeg location
 }
 
 ffmpeg_options = {
