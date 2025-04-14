@@ -134,120 +134,116 @@ class QueueView(View):
         
         await interaction.response.edit_message(embed=embed, view=self)
 
-class MusicControls(View):
-    def __init__(self, original_interaction: discord.Interaction):
+class MusicControls(discord.ui.View):
+    def __init__(self, interaction: discord.Interaction):
         super().__init__(timeout=None)
-        self.original_interaction = original_interaction
+        self.interaction = interaction
 
-    @discord.ui.button(label="⏯️", style=discord.ButtonStyle.grey)
-    async def play_pause(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="⏹️", style=discord.ButtonStyle.danger)
+    async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
-            if interaction.user != self.original_interaction.user:
-                await interaction.response.send_message("Only the person who started the music can control it!", ephemeral=True)
-                return
-
-            voice_client = interaction.guild.voice_client
-            if not voice_client:
-                await interaction.response.send_message("Not connected to a voice channel!", ephemeral=True)
-                return
-
-            if voice_client.is_playing():
-                voice_client.pause()
-                button.label = "▶️"
-                await interaction.response.edit_message(view=self)
-            elif voice_client.is_paused():
-                voice_client.resume()
-                button.label = "⏯️"
-                await interaction.response.edit_message(view=self)
-        except Exception as e:
-            logger.error(f"Error in play_pause: {e}")
-            await interaction.response.send_message("An error occurred while trying to pause/resume.", ephemeral=True)
-
-    @discord.ui.button(label="⏹️", style=discord.ButtonStyle.red)
-    async def stop(self, interaction: discord.Interaction, button: discord.ui.Button):
-        try:
-            if interaction.user != self.original_interaction.user:
-                await interaction.response.send_message("Only the person who started the music can control it!", ephemeral=True)
-                return
-
-            voice_client = interaction.guild.voice_client
-            if voice_client:
-                await voice_client.disconnect()
-                await interaction.response.edit_message(content="Music stopped and disconnected.", view=None)
-                self.stop()
-        except Exception as e:
-            logger.error(f"Error in stop: {e}")
-            await interaction.response.send_message("An error occurred while trying to stop.", ephemeral=True)
-
-    @discord.ui.button(label="⏭️", style=discord.ButtonStyle.grey)
-    async def skip(self, interaction: discord.Interaction, button: discord.ui.Button):
-        try:
-            if interaction.user != self.original_interaction.user:
-                await interaction.response.send_message("Only the person who started the music can control it!", ephemeral=True)
-                return
-
             voice_client = interaction.guild.voice_client
             if voice_client and voice_client.is_playing():
+                await interaction.response.defer()
                 voice_client.stop()
-                await interaction.response.send_message("Skipped the current song.", ephemeral=True)
+                await voice_client.disconnect()
+                await interaction.followup.send("Stopped playing and disconnected.", ephemeral=True)
             else:
                 await interaction.response.send_message("Nothing is playing right now.", ephemeral=True)
         except Exception as e:
-            logger.error(f"Error in skip: {e}")
-            await interaction.response.send_message("An error occurred while trying to skip.", ephemeral=True)
+            logger.error(f"Error in stop button: {e}")
+            try:
+                await interaction.response.send_message("An error occurred while trying to stop.", ephemeral=True)
+            except discord.errors.InteractionResponded:
+                await interaction.followup.send("An error occurred while trying to stop.", ephemeral=True)
 
-    @discord.ui.button(label="🔁", style=discord.ButtonStyle.grey)
-    async def toggle_loop(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="⏸️", style=discord.ButtonStyle.secondary)
+    async def pause_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
-            guild_state = bot.music_queues.get(interaction.guild_id)
-            if not guild_state:
-                await interaction.response.send_message("No music is playing!", ephemeral=True)
-                return
-
-            guild_state.loop = not getattr(guild_state, 'loop', False)
-            button.style = discord.ButtonStyle.green if guild_state.loop else discord.ButtonStyle.grey
-            await interaction.response.edit_message(view=self)
-            await interaction.followup.send(
-                f"🔁 Loop {'enabled' if guild_state.loop else 'disabled'}",
-                ephemeral=True
-            )
-        except Exception as e:
-            logger.error(f"Error in toggle_loop: {e}")
-            await interaction.response.send_message("An error occurred while toggling loop.", ephemeral=True)
-
-    @discord.ui.button(label="🔊", style=discord.ButtonStyle.grey)
-    async def volume_up(self, interaction: discord.Interaction, button: discord.ui.Button):
-        try:
-            if interaction.user != self.original_interaction.user:
-                await interaction.response.send_message("Only the person who started the music can control it!", ephemeral=True)
-                return
-
             voice_client = interaction.guild.voice_client
-            if voice_client and voice_client.source:
-                current_volume = voice_client.source.volume
-                new_volume = min(2.0, current_volume + 0.2)
-                voice_client.source.volume = new_volume
-                await interaction.response.send_message(f"🔊 Volume set to {int(new_volume * 100)}%", ephemeral=True)
+            if voice_client and voice_client.is_playing():
+                await interaction.response.defer()
+                voice_client.pause()
+                await interaction.followup.send("Paused the music.", ephemeral=True)
+            else:
+                await interaction.response.send_message("Nothing is playing right now.", ephemeral=True)
         except Exception as e:
-            logger.error(f"Error in volume_up: {e}")
-            await interaction.response.send_message("An error occurred while adjusting volume.", ephemeral=True)
+            logger.error(f"Error in pause button: {e}")
+            try:
+                await interaction.response.send_message("An error occurred while trying to pause.", ephemeral=True)
+            except discord.errors.InteractionResponded:
+                await interaction.followup.send("An error occurred while trying to pause.", ephemeral=True)
 
-    @discord.ui.button(label="🔉", style=discord.ButtonStyle.grey)
-    async def volume_down(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="▶️", style=discord.ButtonStyle.success)
+    async def resume_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
-            if interaction.user != self.original_interaction.user:
-                await interaction.response.send_message("Only the person who started the music can control it!", ephemeral=True)
-                return
-
             voice_client = interaction.guild.voice_client
-            if voice_client and voice_client.source:
-                current_volume = voice_client.source.volume
-                new_volume = max(0.0, current_volume - 0.2)
-                voice_client.source.volume = new_volume
-                await interaction.response.send_message(f"🔉 Volume set to {int(new_volume * 100)}%", ephemeral=True)
+            if voice_client and voice_client.is_paused():
+                await interaction.response.defer()
+                voice_client.resume()
+                await interaction.followup.send("Resumed the music.", ephemeral=True)
+            else:
+                await interaction.response.send_message("Nothing is paused right now.", ephemeral=True)
         except Exception as e:
-            logger.error(f"Error in volume_down: {e}")
-            await interaction.response.send_message("An error occurred while adjusting volume.", ephemeral=True)
+            logger.error(f"Error in resume button: {e}")
+            try:
+                await interaction.response.send_message("An error occurred while trying to resume.", ephemeral=True)
+            except discord.errors.InteractionResponded:
+                await interaction.followup.send("An error occurred while trying to resume.", ephemeral=True)
+
+    @discord.ui.button(label="⏭️", style=discord.ButtonStyle.primary)
+    async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            voice_client = interaction.guild.voice_client
+            if voice_client and voice_client.is_playing():
+                await interaction.response.defer()
+                voice_client.stop()
+                await interaction.followup.send("Skipped to the next song.", ephemeral=True)
+            else:
+                await interaction.response.send_message("Nothing is playing right now.", ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error in skip button: {e}")
+            try:
+                await interaction.response.send_message("An error occurred while trying to skip.", ephemeral=True)
+            except discord.errors.InteractionResponded:
+                await interaction.followup.send("An error occurred while trying to skip.", ephemeral=True)
+
+    @discord.ui.button(label="🔄", style=discord.ButtonStyle.secondary)
+    async def loop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            guild_id = interaction.guild_id
+            if guild_id in guild_states:
+                guild_states[guild_id].loop = not guild_states[guild_id].loop
+                status = "enabled" if guild_states[guild_id].loop else "disabled"
+                await interaction.response.send_message(f"Loop mode {status}.", ephemeral=True)
+            else:
+                await interaction.response.send_message("No music is playing right now.", ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error in loop button: {e}")
+            try:
+                await interaction.response.send_message("An error occurred while trying to toggle loop mode.", ephemeral=True)
+            except discord.errors.InteractionResponded:
+                await interaction.followup.send("An error occurred while trying to toggle loop mode.", ephemeral=True)
+
+    @discord.ui.button(label="🔊", style=discord.ButtonStyle.secondary)
+    async def volume_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            guild_id = interaction.guild_id
+            if guild_id in guild_states:
+                current_volume = int(guild_states[guild_id].volume * 100)
+                await interaction.response.send_message(
+                    f"Current volume: {current_volume}%\n"
+                    "Use `/volume <0-200>` to adjust the volume.",
+                    ephemeral=True
+                )
+            else:
+                await interaction.response.send_message("No music is playing right now.", ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error in volume button: {e}")
+            try:
+                await interaction.response.send_message("An error occurred while trying to show volume.", ephemeral=True)
+            except discord.errors.InteractionResponded:
+                await interaction.followup.send("An error occurred while trying to show volume.", ephemeral=True)
 
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5):
